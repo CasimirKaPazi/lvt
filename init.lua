@@ -1,17 +1,8 @@
--- Land Value Protection
--- Protect an area for as long as the lvt node is active.
--- Price is determined dynamically.
-
--- based on AndrejIT's protectior and brazier mod
--- based on Zeg9's protector mod
--- based on glomie's mod of the same name
--- protects against placing tnt near protected area.
-
 local S = minetest.get_translator("lvt")
 lvt = {}
 lvt.cache = {}
 lvt.landvalue = {}
-lvt.radius = 3--(tonumber(minetest.setting_get("lvt_radius")) or 3)
+lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 3)
 lvt.pspawnpos = (minetest.setting_get_pos("static_spawnpoint") or {x=0, y=3, z=0})
 lvt.pspawn = true -- protect area aound spawn
 
@@ -118,7 +109,7 @@ lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 	end
 	if infolevel == 2 then
 		if #positions < 1 then
-			minetest.chat_send_player(name, "This area is not protected.")
+			minetest.chat_send_player(name, S("This area is not protected."))
 		else
 			local meta = minetest.get_meta(positions[1])
 			minetest.chat_send_player(name, "This area is owned by "..meta:get_string("owner")..".")
@@ -126,7 +117,7 @@ lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 				minetest.chat_send_player(name,"Members are: "..meta:get_string("members")..".")
 			end
 		end
-		minetest.chat_send_player(name,"You can build here.")
+		minetest.chat_send_player(name,S("You can build here."))
 	end
 	return true
 end
@@ -155,7 +146,7 @@ minetest.item_place = function(itemstack, placer, pointed_thing)
 			pos.z > lvt.pspawnpos.z - 121 and pos.z < lvt.pspawnpos.z + 121 and
 			not minetest.get_player_privs(placer:get_player_name()).delprotect
 		then
-			minetest.chat_send_player(placer:get_player_name(), "Spawn is protected.")
+			minetest.chat_send_player(placer:get_player_name(), S("Spawn is protected."))
 			return itemstack
 		end
 	elseif minetest.get_item_group(itemname, "lvt") > 0 then
@@ -167,7 +158,7 @@ minetest.item_place = function(itemstack, placer, pointed_thing)
 			pos.z > lvt.pspawnpos.z - 21 and pos.z < lvt.pspawnpos.z + 21 and
 			not minetest.get_player_privs(placer:get_player_name()).delprotect
 		then
-			minetest.chat_send_player(placer:get_player_name(), "Spawn is protected.")
+			minetest.chat_send_player(placer:get_player_name(), S("Spawn is protected."))
 			return itemstack
 		end
 	elseif minetest.get_item_group(itemname, "sapling") > 0 then
@@ -262,7 +253,7 @@ lvt.generate_formspec = function (meta, pos)
 	local formspec = "size[8,10]"
 		-- Fuel and start
 		.."list[context;fuel;3.5,4.75;1,1;]"
-		.."button[1.5,4.75;2,1;lvt_start;START]"
+		.."button[1.5,4.75;2,1;lvt_start;"..S("START").."]"
 		-- Player inventory
 		.."list[current_player;main;0,6;8,1;]"
 		.."list[current_player;main;0,7.25;8,3;8]"
@@ -279,10 +270,10 @@ end
 
 lvt.generate_formspec_active = function (meta, pos)
 	local formspec = "size[8,10]"
-		.."label[0,0;Punch the node to show the protected area.]"
+		.."label[0,0;"..S("Punch the node to show the protected area.").."]"
 		-- Fuel and stop
 		.."list[context;fuel;3.5,4.75;1,1;]"
-		.."button[4.5,4.75;2,1;lvt_stop;STOP]"
+		.."button[4.5,4.75;2,1;lvt_stop;"..S("STOP").."]"
 		-- Player inventory
 		.."list[current_player;main;0,6;8,1;]"
 		.."list[current_player;main;0,7.25;8,3;8]"
@@ -462,7 +453,7 @@ minetest.register_node("lvt:engine_active", {
 		},
 	light_source = 5,
 	drop = "lvt:engine",
-	groups = {dig_immediate=2, protector=1},
+	groups = {dig_immediate=2, protector=1, not_in_creative_inventory=1},
 	sounds = default.node_sound_stone_defaults(),
 	on_rightclick = function(pos, node, player, itemstack)
 		local meta = minetest.get_meta(pos)
@@ -545,7 +536,6 @@ minetest.register_node("lvt:display_node", {
 	node_box = {
 		type = "fixed",
 		fixed = {
-
 			-- sides
 			{-(x+.55), -(x+.55), -(x+.55), -(x+.45), (x+.55), (x+.55)},
 			{-(x+.55), -(x+.55), (x+.45), (x+.55), (x+.55), (x+.55)},
