@@ -552,9 +552,9 @@ minetest.register_node("lvt:engine_active", {
 minetest.register_craft({
 	output = "lvt:engine",
 	recipe = {
-		{"", "default:steel_ingot", ""},
-		{"default:steel_ingot", "default:furnace", "default:steel_ingot"},
-		{"", "default:steel_ingot", ""},
+		{"default:cobble", "default:cobble", "default:cobble"},
+		{"default:cobble", "default:mese_crystal_fragment", "default:cobble"},
+		{"default:cobble", "default:cobble", "default:cobble"},
 	}
 })
 
