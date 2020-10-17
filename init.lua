@@ -1,7 +1,7 @@
 local S = minetest.get_translator("lvt")
 lvt = {}
 lvt.cache = {}
-lvt.landvalue = {}
+lvt.lease = {} -- latest land values by area. includes price and date.
 lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 3)
 lvt.pspawnpos = (minetest.setting_get_pos("static_spawnpoint") or {x=0, y=3, z=0})
 lvt.pspawn = true -- protect area aound spawn
@@ -250,8 +250,38 @@ local function allow_metadata_inventory_take(pos, listname, index, stack, player
 	return stack:get_count()
 end
 
+local function area_string(pos)
+	local r = lvt.radius
+	local area = {
+		x=math.floor(pos.x/r)*r,
+		y=math.floor(pos.y/r)*r,
+		z=math.floor(pos.z/r)*r,
+	}
+	local area_s = minetest.pos_to_string(area, 0)
+	return area_s
+end
+
+local function calculate_lease(pos)
+	-- dutch auction: start with double the price and lower until someone is willing to pay.
+	local area_s = area_string(pos)
+	local lease = 2
+	if lvt.lease[area_s] and lvt.lease[area_s].price then
+		local o_lease = lvt.lease[area_s].price
+print("old leaes: "..o_lease)
+		local ago = minetest.get_gametime() - lvt.lease[area_s].date
+print("date: "..lvt.lease[area_s].date)
+print("now: "..minetest.get_gametime())
+print("ago: "..ago)
+		-- price halflife is 100 seconds
+		lease = math.ceil( o_lease*2 * 100/(100+ago))
+	end
+	return lease
+end
+
 lvt.generate_formspec = function (meta, pos)
+	local bid = calculate_lease(pos)
 	local formspec = "size[8,10]"
+		.."label[0,0;"..bid.."]"
 		-- Fuel and start
 		.."list[context;fuel;3.5,4.75;1,1;]"
 		.."button[1.5,4.75;2,1;lvt_start;"..S("START").."]"
@@ -311,16 +341,15 @@ end
 local function burn_fuel(pos, inv)
 	local fuellist = inv:get_list("fuel")
 	-- get new fuel
-	local afterfuel
-	fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
+	local fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
 	-- Take fuel from fuel list
 	inv:set_stack("fuel", 1, afterfuel.items[1])
-	fuel_time = fuel.time
 	-- deactivate protection when empty
 	if fuellist and fuellist[1]:is_empty() then
 		deactivate_protection(pos)
+		return nil
 	end
-	return fuel_time
+	return fuel.time
 end
 
 -- Buttons
@@ -345,6 +374,20 @@ minetest.register_on_player_receive_fields(function(player,formname,fields)
 				swap_node(pos, "lvt:engine_active")
 				-- set fuel to 0 for a fresh start
 				meta:set_float("fuel_time", 0)
+				-- calculate lease
+				local lease = calculate_lease(pos)
+print("new leaes: "..lease)
+				-- set new values
+				local area_s = area_string(pos)
+				if lease > 1 then
+					lvt.lease[area_s] = {}
+					lvt.lease[area_s].price = lease
+					lvt.lease[area_s].date = minetest.get_gametime()
+					print("time "..minetest.get_gametime())
+				else
+					lvt.lease[area_s] = nil
+				end
+				meta:set_string("lease", lease)
 				-- activate timer imediately to burn fuel
 				local timer = minetest.get_node_timer(pos)
 				timer:start(0)
@@ -396,21 +439,21 @@ end)
 -- Node timer
 --
 
-local function engine_node_timer(pos, elapsed)
+local function engine_node_timer_active(pos, elapsed)
 	local meta = minetest.get_meta(pos)
 	local inv = meta:get_inventory()
 	local timer = minetest.get_node_timer(pos)
 	local fuellist = inv:get_list("fuel")
 	local fuel_time = meta:get_float("fuel_time") or 0
+	local lease = tonumber(meta:get_string("lease"))
 
-	if minetest.get_node(pos).name == "lvt:engine_active" then
-		if fuel_time > 0 then
-			fuel_time = fuel_time -1
-print("time "..fuel_time)
-		else
-			fuel_time = burn_fuel(pos, inv)
-		end
+	-- burn enough fuel to pay the lease
+	while fuel_time < lease do
+		local burn_time = burn_fuel(pos, inv)
+		if not burn_time then break end
+		fuel_time = fuel_time + burn_time
 	end
+	fuel_time = fuel_time - lease
 
 	-- set meta values for next round
 	meta:set_float("fuel_time", fuel_time)
@@ -431,7 +474,6 @@ minetest.register_node("lvt:engine", {
 		local meta = minetest.get_meta(pos)
 		local inv = meta:get_inventory()
 		inv:set_size('fuel', 1)
-		engine_node_timer(pos, 0)
 		meta:set_string("formspec",lvt.generate_formspec(meta, pos))
 	end,
 -- [[
@@ -450,14 +492,13 @@ minetest.register_node("lvt:engine", {
 			minetest.show_formspec(
 				player:get_player_name(),
 				"lvt_"..minetest.pos_to_string(pos),
-				lvt.generate_formspec(meta)
+				lvt.generate_formspec(meta, pos)
 			)
 		end
 	end,
 	allow_metadata_inventory_put = allow_metadata_inventory_put,
 	allow_metadata_inventory_take = allow_metadata_inventory_take,
 	can_dig = can_dig,
-	on_timer = engine_node_timer,
 })
 
 minetest.register_node("lvt:engine_active", {
@@ -516,7 +557,7 @@ minetest.register_node("lvt:engine_active", {
 	allow_metadata_inventory_put = allow_metadata_inventory_put,
 	allow_metadata_inventory_take = allow_metadata_inventory_take,
 	can_dig = can_dig,
-	on_timer = engine_node_timer,
+	on_timer = engine_node_timer_active,
 })
 
 minetest.register_craft({

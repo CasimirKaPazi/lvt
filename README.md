@@ -16,14 +16,14 @@ Working features
 - interface
 - add members
 - show protection
+- use same fuel mechanism as in furnaces
+- revers auction to determine price
+- use last price as starting point
 
 
 Planed features
 ---------------
 
-- use same fuel mechanism as in furnaces
-- revers auction to determine price
-- use last price as starting point
 - database of latest land prices
 
 License
