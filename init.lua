@@ -5,6 +5,7 @@ lvt.landvalue = {}
 lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 3)
 lvt.pspawnpos = (minetest.setting_get_pos("static_spawnpoint") or {x=0, y=3, z=0})
 lvt.pspawn = true -- protect area aound spawn
+lvt.step = 1
 
 minetest.register_privilege("delprotect",S("Delete other's protection by sneaking"))
 
@@ -307,6 +308,21 @@ lvt.generate_formspec_active = function (meta, pos)
 	return formspec
 end
 
+local function burn_fuel(pos, inv)
+	local fuellist = inv:get_list("fuel")
+	-- get new fuel
+	local afterfuel
+	fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
+	-- Take fuel from fuel list
+	inv:set_stack("fuel", 1, afterfuel.items[1])
+	fuel_time = fuel.time
+	-- deactivate protection when empty
+	if fuellist and fuellist[1]:is_empty() then
+		deactivate_protection(pos)
+	end
+	return fuel_time
+end
+
 -- Buttons
 minetest.register_on_player_receive_fields(function(player,formname,fields)
 	-- formname contains the position as a string in the format of "lvt_(x,y,z)"
@@ -324,15 +340,21 @@ minetest.register_on_player_receive_fields(function(player,formname,fields)
 		if fields.lvt_start then
 			-- activate protection when fueled
 			if minetest.get_node(pos).name == "lvt:engine"
-					and fuellist and not fuellist[1]:is_empty() then
-					swap_node(pos, "lvt:engine_active")
-					meta:set_string("formspec",lvt.generate_formspec_active(meta, pos))
-					activate_protection(pos,player)
-					minetest.show_formspec(
-						player:get_player_name(),
-						"lvt_"..minetest.pos_to_string(pos),
-						lvt.generate_formspec_active(meta, pos)
-					)
+					and fuellist
+					and minetest.get_craft_result({method = "fuel", width = 1, items = fuellist}).time > 0 then
+				swap_node(pos, "lvt:engine_active")
+				-- set fuel to 0 for a fresh start
+				meta:set_float("fuel_time", 0)
+				-- activate timer imediately to burn fuel
+				local timer = minetest.get_node_timer(pos)
+				timer:start(0)
+				activate_protection(pos,player)
+				meta:set_string("formspec",lvt.generate_formspec_active(meta, pos))
+				minetest.show_formspec(
+					player:get_player_name(),
+					"lvt_"..minetest.pos_to_string(pos),
+					lvt.generate_formspec_active(meta, pos)
+				)
 			end
 			return
 		end
@@ -379,20 +401,21 @@ local function engine_node_timer(pos, elapsed)
 	local inv = meta:get_inventory()
 	local timer = minetest.get_node_timer(pos)
 	local fuellist = inv:get_list("fuel")
+	local fuel_time = meta:get_float("fuel_time") or 0
 
 	if minetest.get_node(pos).name == "lvt:engine_active" then
-		-- burn fuel
-		local stk = inv:get_stack("fuel", 1)
-		stk:set_count(1)
-		inv:remove_item("fuel", stk)
-		-- deactivate protection when empty
-		if fuellist and fuellist[1]:is_empty() then
-			deactivate_protection(pos)
+		if fuel_time > 0 then
+			fuel_time = fuel_time -1
+print("time "..fuel_time)
+		else
+			fuel_time = burn_fuel(pos, inv)
 		end
 	end
 
+	-- set meta values for next round
+	meta:set_float("fuel_time", fuel_time)
 	-- make sure timer restarts automatically
-	timer:start(5.0)
+	timer:start(lvt.step)
 end
 
 --
@@ -450,7 +473,7 @@ minetest.register_node("lvt:engine_active", {
 				length = 1.5
 			}
 		}
-		},
+	},
 	light_source = 5,
 	drop = "lvt:engine",
 	groups = {dig_immediate=2, protector=1, not_in_creative_inventory=1},
