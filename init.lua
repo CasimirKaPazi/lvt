@@ -238,8 +238,6 @@ local function allow_metadata_inventory_put(pos, listname, index, stack, player)
 	if not lvt.can_interact(1,pos,player,true) then
 		return 0
 	end
---	local meta = minetest.get_meta(pos)
---	local inv = meta:get_inventory()
 	return stack:get_count()
 end
 
@@ -267,11 +265,7 @@ local function calculate_lease(pos)
 	local lease = 2
 	if lvt.lease[area_s] and lvt.lease[area_s].price then
 		local o_lease = lvt.lease[area_s].price
-print("old leaes: "..o_lease)
 		local ago = minetest.get_gametime() - lvt.lease[area_s].date
-print("date: "..lvt.lease[area_s].date)
-print("now: "..minetest.get_gametime())
-print("ago: "..ago)
 		-- price halflife is 100 seconds
 		lease = math.ceil( o_lease*2 * 100/(100+ago))
 	end
@@ -281,10 +275,10 @@ end
 lvt.generate_formspec = function (meta, pos)
 	local bid = calculate_lease(pos)
 	local formspec = "size[8,10]"
-		.."label[0,0;"..bid.."]"
 		-- Fuel and start
 		.."list[context;fuel;3.5,4.75;1,1;]"
 		.."button[1.5,4.75;2,1;lvt_start;"..S("START").."]"
+		.."label[4.5,5;" ..S("Bid:").. " " ..bid.."]"
 		-- Player inventory
 		.."list[current_player;main;0,6;8,1;]"
 		.."list[current_player;main;0,7.25;8,3;8]"
@@ -300,11 +294,13 @@ lvt.generate_formspec = function (meta, pos)
 end
 
 lvt.generate_formspec_active = function (meta, pos)
+	local lease = tonumber(meta:get_string("lease"))
 	local formspec = "size[8,10]"
 		.."label[0,0;"..S("Punch the node to show the protected area.").."]"
 		-- Fuel and stop
 		.."list[context;fuel;3.5,4.75;1,1;]"
-		.."button[4.5,4.75;2,1;lvt_stop;"..S("STOP").."]"
+		.."button[1.5,4.75;2,1;lvt_stop;"..S("STOP").."]"
+		.."label[4.5,5;" ..S("Lease:").. " " ..lease.."]"
 		-- Player inventory
 		.."list[current_player;main;0,6;8,1;]"
 		.."list[current_player;main;0,7.25;8,3;8]"
@@ -330,26 +326,10 @@ lvt.generate_formspec_active = function (meta, pos)
 		local spos = pos.x .. "," ..pos.y .. "," .. pos.z
 		formspec = formspec
 			.."field["..(i%4*2+1/3)..","..(math.floor(i/4+1)+1/3)..";1.433,.5;lvt_add_member;;]"
-
---			.."list[nodemeta:" .. spos .. ";fuel;3.5,8.25;1,1;]"..
 			.."button["..(i%4*2+1.25)..","..math.floor(i/4+1)..";.75,.5;lvt_submit;+]"
 	end
 
 	return formspec
-end
-
-local function burn_fuel(pos, inv)
-	local fuellist = inv:get_list("fuel")
-	-- get new fuel
-	local fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
-	-- Take fuel from fuel list
-	inv:set_stack("fuel", 1, afterfuel.items[1])
-	-- deactivate protection when empty
-	if fuellist and fuellist[1]:is_empty() then
-		deactivate_protection(pos)
-		return nil
-	end
-	return fuel.time
 end
 
 -- Buttons
@@ -376,14 +356,12 @@ minetest.register_on_player_receive_fields(function(player,formname,fields)
 				meta:set_float("fuel_time", 0)
 				-- calculate lease
 				local lease = calculate_lease(pos)
-print("new leaes: "..lease)
 				-- set new values
 				local area_s = area_string(pos)
 				if lease > 1 then
 					lvt.lease[area_s] = {}
 					lvt.lease[area_s].price = lease
 					lvt.lease[area_s].date = minetest.get_gametime()
-					print("time "..minetest.get_gametime())
 				else
 					lvt.lease[area_s] = nil
 				end
@@ -438,6 +416,19 @@ end)
 --
 -- Node timer
 --
+local function burn_fuel(pos, inv)
+	local fuellist = inv:get_list("fuel")
+	-- get new fuel
+	local fuel, afterfuel = minetest.get_craft_result({method = "fuel", width = 1, items = fuellist})
+	-- Take fuel from fuel list
+	inv:set_stack("fuel", 1, afterfuel.items[1])
+	-- deactivate protection when empty
+	if fuellist and fuellist[1]:is_empty() then
+		deactivate_protection(pos)
+		return nil
+	end
+	return fuel.time
+end
 
 local function engine_node_timer_active(pos, elapsed)
 	local meta = minetest.get_meta(pos)
@@ -476,7 +467,6 @@ minetest.register_node("lvt:engine", {
 		inv:set_size('fuel', 1)
 		meta:set_string("formspec",lvt.generate_formspec(meta, pos))
 	end,
--- [[
 	on_metadata_inventory_put = function(pos)
 		-- start engine when fueled
 		minetest.get_node_timer(pos):start(1.0)
@@ -485,7 +475,6 @@ minetest.register_node("lvt:engine", {
 		-- check whether the engine is empty or not
 		minetest.get_node_timer(pos):start(1.0)
 	end,
---]]
 	on_rightclick = function(pos, node, player, itemstack)
 		local meta = minetest.get_meta(pos)
 		if lvt.can_interact(1,pos,player,true) then
