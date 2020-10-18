@@ -206,6 +206,17 @@ local function swap_node(pos, name)
 	minetest.swap_node(pos, node)
 end
 
+local function area_string(pos)
+	local r = lvt.radius
+	local area = {
+		x=math.floor(pos.x/r)*r,
+		y=math.floor(pos.y/r)*r,
+		z=math.floor(pos.z/r)*r,
+	}
+	local area_s = minetest.pos_to_string(area, 0)
+	return area_s
+end
+
 local function activate_protection(pos, player)
 	local meta = minetest.get_meta(pos)
 	meta:set_string("owner", player:get_player_name() or "")
@@ -219,6 +230,14 @@ local function deactivate_protection(pos, player)
 	meta:set_string("owner", nil)
 	meta:set_string("infotext", nil)
 	meta:set_string("members", "")
+	-- save values to start the countdown auction
+	local lease = tonumber(meta:get_string("lease"))
+	local area_s = area_string(pos)
+	lvt.lease[area_s] = {}
+	lvt.lease[area_s].price = lease
+	lvt.lease[area_s].date = minetest.get_gametime()
+	meta:set_string("lease", nil)
+	-- deactivate
 	swap_node(pos, "lvt:engine")
 	meta:set_string("formspec",lvt.generate_formspec(meta, pos))
 end
@@ -247,21 +266,10 @@ local function allow_metadata_inventory_take(pos, listname, index, stack, player
 	return stack:get_count()
 end
 
-local function area_string(pos)
-	local r = lvt.radius
-	local area = {
-		x=math.floor(pos.x/r)*r,
-		y=math.floor(pos.y/r)*r,
-		z=math.floor(pos.z/r)*r,
-	}
-	local area_s = minetest.pos_to_string(area, 0)
-	return area_s
-end
-
 local function calculate_lease(pos)
 	-- dutch auction: start with double the price and lower until someone is willing to pay.
 	local area_s = area_string(pos)
-	local lease = 2
+	local lease = 1
 	if lvt.lease[area_s] and lvt.lease[area_s].price then
 		local o_lease = lvt.lease[area_s].price
 		local ago = minetest.get_gametime() - lvt.lease[area_s].date
@@ -397,13 +405,9 @@ minetest.register_on_player_receive_fields(function(player,formname,fields)
 				local lease = calculate_lease(pos)
 				-- set new values
 				local area_s = area_string(pos)
-				if lease > 1 then
-					lvt.lease[area_s] = {}
-					lvt.lease[area_s].price = lease
-					lvt.lease[area_s].date = minetest.get_gametime()
-				else
-					lvt.lease[area_s] = nil
-				end
+				lvt.lease[area_s] = {}
+				lvt.lease[area_s].price = lease
+				lvt.lease[area_s].date = minetest.get_gametime()
 				meta:set_string("lease", lease)
 				-- activate timer imediately to burn fuel
 				local timer = minetest.get_node_timer(pos)
@@ -421,6 +425,7 @@ minetest.register_on_player_receive_fields(function(player,formname,fields)
 
 		-- Stop protector
 		if fields.lvt_stop then
+			-- stop
 			deactivate_protection(pos, player)
 			-- Change to new formspec
 			minetest.show_formspec(
