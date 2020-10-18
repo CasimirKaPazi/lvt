@@ -2,10 +2,11 @@ local S = minetest.get_translator("lvt")
 lvt = {}
 lvt.cache = {}
 lvt.lease = {} -- latest land values by area. includes price and date.
-lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 3)
+lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 5)
 lvt.pspawnpos = (minetest.setting_get_pos("static_spawnpoint") or {x=0, y=3, z=0})
 lvt.pspawn = true -- protect area aound spawn
-lvt.step = 1
+lvt.step = 60
+lvt.halflife = 3600
 
 minetest.register_privilege("delprotect",S("Delete other's protection by sneaking"))
 
@@ -274,7 +275,7 @@ local function calculate_lease(pos)
 		local o_lease = lvt.lease[area_s].price
 		local ago = minetest.get_gametime() - lvt.lease[area_s].date
 		-- price halflife is 100 seconds
-		lease = math.ceil( o_lease*2 * 100/(100+ago))
+		lease = math.ceil( o_lease*2 * lvt.halflife/(lvt.halflife+ago))
 	end
 	return lease
 end
