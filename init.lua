@@ -137,7 +137,6 @@ minetest.item_place = function(itemstack, placer, pointed_thing)
 		local name = placer:get_player_name()
 		minetest.log("action", "Player "..name.." placing "..itemname.." without pos");
 		return itemstack
-
 	elseif itemname == lvt.node then
 		if not lvt.can_interact(lvt.radius*2, pos, placer, true) then
 			return itemstack
@@ -332,6 +331,46 @@ lvt.generate_formspec_active = function (meta, pos)
 	return formspec
 end
 
+-- same as active, but hide buttons
+lvt.generate_formspec_public = function (meta, pos)
+	local lease = tonumber(meta:get_string("lease"))
+	local formspec = "size[8,10]"
+		.."label[0,0;"..S("Punch the node to show the protected area.").."]"
+		-- Fuel and stop
+		.."list[context;fuel;3.5,4.75;1,1;]"
+--		.."button[1.5,4.75;2,1;lvt_stop;"..S("STOP").."]"
+		.."label[4.5,5;" ..S("Lease:").. " " ..lease.."]"
+		-- Player inventory
+		.."list[current_player;main;0,6;8,1;]"
+		.."list[current_player;main;0,7.25;8,3;8]"
+		.."listring[context;dst]"
+		.."listring[current_player;main]"
+		.."listring[context;src]"
+		.."listring[current_player;main]"
+		.."listring[context;fuel]"
+		.."listring[current_player;main]"
+		-- Members
+		.."label[0,0.4;Current members:]"
+	local members = lvt.get_member_list(meta)
+	local npp = 16 -- names per page, is 4*4
+	local i = 0
+	for _, member in ipairs(members) do
+		if i < npp then
+			formspec = formspec .."button["..(i%4*2)..","..math.floor(i/4+1)..";1.5,0.5;lvt_member;"..member.."]"
+--			formspec = formspec .."button["..(i%4*2+1.25)..","..math.floor(i/4+1)..";.75,.5;lvt_del_member_"..member..";X]"
+		end
+		i = i +1
+	end
+--	if i < npp then
+--		local spos = pos.x .. "," ..pos.y .. "," .. pos.z
+--		formspec = formspec
+--			.."field["..(i%4*2+1/3)..","..(math.floor(i/4+1)+1/3)..";1.433,.5;lvt_add_member;;]"
+--			.."button["..(i%4*2+1.25)..","..math.floor(i/4+1)..";.75,.5;lvt_submit;+]"
+--	end
+
+	return formspec
+end
+
 -- Buttons
 minetest.register_on_player_receive_fields(function(player,formname,fields)
 	-- formname contains the position as a string in the format of "lvt_(x,y,z)"
@@ -516,12 +555,15 @@ minetest.register_node("lvt:engine_active", {
 				"lvt_"..minetest.pos_to_string(pos),
 				lvt.generate_formspec_active(meta, pos)
 			)
+		else
+			minetest.show_formspec(
+				player:get_player_name(),
+				"lvt_"..minetest.pos_to_string(pos),
+				lvt.generate_formspec_public(meta, pos)
+			)
 		end
 	end,
-	on_punch = function(pos, node, puncher)
-		if not lvt.can_interact(1, pos, puncher, true) then
-			return
-		end
+	on_punch = function(pos, node, player)
 		local objs = minetest.get_objects_inside_radius(pos, 0.5) -- a radius of .5 since the entity serialization seems to be not that precise
 		local removed = false
 
