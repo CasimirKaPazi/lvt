@@ -5,7 +5,7 @@ lvt.lease = {} -- latest land values by area. includes price and date.
 lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 5)
 lvt.pspawnpos = (minetest.setting_get_pos("static_spawnpoint") or {x=0, y=3, z=0})
 lvt.pspawn = true -- protect area aound spawn
-lvt.step = 60
+lvt.step = 1 --60
 lvt.halflife = 3600
 
 minetest.register_privilege("delprotect",S("Delete other's protection by sneaking"))
@@ -58,11 +58,6 @@ end
 --
 
 -- r: radius to check for protects
--- Infolevel:
--- * 0 for no info
--- * 1 for "This area is owned by <owner> !" if you can't dig
--- * 2 for "This area is owned by <owner>.
---   Members are: <members>.", even if you can dig
 lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 	local player
 	if type(name) == "string" then
@@ -78,7 +73,6 @@ lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 		return false
 	end
 
-	if infolevel == nil then infolevel = 1 end
 	-- Delprotect privileged users can override protections by holding sneak
 	if minetest.get_player_privs( name ).delprotect and
 	   player:get_player_control().sneak then
@@ -96,30 +90,14 @@ lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 		if not owner then return true end
 		if owner ~= name then
 			if onlyowner or not lvt.is_member(meta, name) then
-				if infolevel == 1 then
-					minetest.chat_send_player(name, "This area is owned by "..owner.."!")
-				elseif infolevel == 2 then
-					minetest.chat_send_player(name, "This area is owned by "..meta:get_string("owner")..".")
-					if meta:get_string("members") ~= "" then
-						minetest.chat_send_player(name, "Members are: "..meta:get_string("members")..".")
-					end
+				minetest.chat_send_player(name, "This area is owned by "..meta:get_string("owner")..".")
+				if meta:get_string("members") ~= "" then
+					minetest.chat_send_player(name, "Members are: "..meta:get_string("members")..".")
 				end
 				lvt.cache[name..minetest.pos_to_string(pos)] = 1
 				return false
 			end
 		end
-	end
-	if infolevel == 2 then
-		if #positions < 1 then
-			minetest.chat_send_player(name, S("This area is not protected."))
-		else
-			local meta = minetest.get_meta(positions[1])
-			minetest.chat_send_player(name, "This area is owned by "..meta:get_string("owner")..".")
-			if meta:get_string("members") ~= "" then
-				minetest.chat_send_player(name,"Members are: "..meta:get_string("members")..".")
-			end
-		end
-		minetest.chat_send_player(name,S("You can build here."))
 	end
 	return true
 end
@@ -150,7 +128,7 @@ minetest.item_place = function(itemstack, placer, pointed_thing)
 			minetest.chat_send_player(placer:get_player_name(), S("Spawn is protected."))
 			return itemstack
 		end
-	elseif minetest.get_item_group(itemname, "lvt") > 0 then
+	elseif minetest.get_item_group(itemname, "protector") > 0 then
 		if not lvt.can_interact(lvt.radius*2, pos, placer, true) then
 			return itemstack
 		end
