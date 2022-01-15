@@ -68,10 +68,10 @@ lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 	else
 		return false
 	end
-	--fast check from cached data. no messages etc, just deny.
-	if lvt.cache[name..minetest.pos_to_string(pos)] then
-		return false
-	end
+	-- fast check from cached data. no messages etc, just deny.
+--	if lvt.cache[name..minetest.pos_to_string(pos)] then
+--		return false
+--	end
 
 	-- Delprotect privileged users can override protections by holding sneak
 	if minetest.get_player_privs( name ).delprotect and
@@ -94,7 +94,7 @@ lvt.can_interact = function(r, pos, name, onlyowner, infolevel)
 				if meta:get_string("members") ~= "" then
 					minetest.chat_send_player(name, "Members are: "..meta:get_string("members")..".")
 				end
-				lvt.cache[name..minetest.pos_to_string(pos)] = 1
+--				lvt.cache[name..minetest.pos_to_string(pos)] = 1
 				return false
 			end
 		end
