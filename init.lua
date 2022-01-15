@@ -5,7 +5,7 @@ lvt.lease = {} -- latest land values by area. includes price and date.
 lvt.radius = (tonumber(minetest.setting_get("lvt_radius")) or 5)
 lvt.pspawnpos = (minetest.setting_get_pos("static_spawnpoint") or {x=0, y=3, z=0})
 lvt.pspawn = true -- protect area aound spawn
-lvt.step = 1 --60
+lvt.step = 60
 lvt.halflife = 3600
 
 minetest.register_privilege("delprotect",S("Delete other's protection by sneaking"))
